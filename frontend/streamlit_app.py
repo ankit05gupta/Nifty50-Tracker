@@ -10,79 +10,77 @@ if app_dir not in sys.path:
 
 from enhanced_stock_fetcher import StockDataFetcher
 
-st.title("Nifty 50 Stock Technical Analysis")
+st.set_page_config(page_title="Nifty 50 Technical Analysis", layout="wide")
+st.markdown("<h1 style='text-align: center; color: #0072B5;'>Nifty 50 Interactive Technical Analysis</h1>", unsafe_allow_html=True)
 
-# Load Nifty 50 symbols from JSON
-with open(os.path.join(app_dir, "nifty50_symbols_2025.json")) as f:
-    nifty_symbols = json.load(f)
+with st.sidebar:
+    st.image("https://assets.stocksinnews.com/nifty50.png", use_container_width=True)
+    st.markdown("### Select Stock & Period")
+    with open(os.path.join(app_dir, "nifty50_symbols_2025.json")) as f:
+        nifty_symbols = json.load(f)
+    selected_stock = st.selectbox("Nifty 50 Stock", nifty_symbols)
+    period = st.selectbox("Analysis Period", ["1mo", "3mo", "6mo", "1y"], index=0)
+    st.markdown("---")
+    st.markdown("#### About Technical Indicators")
+    st.info("""
+- **SMA/EMA:** Moving averages for trend direction  
+- **RSI:** Momentum & overbought/oversold  
+- **MACD:** Trend strength & reversals  
+""")
 
 fetcher = StockDataFetcher()
 
-selected_stock = st.selectbox("Select Nifty 50 Stock:", nifty_symbols)
-period = st.selectbox("Select Period:", ["1mo", "3mo", "6mo", "1y"], index=0)
-
-if st.button("Refresh Analysis"):
+if st.button("🔄 Refresh Analysis"):
     refresh = True
 else:
     refresh = False
 
-if refresh or True:  # Always show data on first load
+if refresh or True:
     result = fetcher.get_stock_data(selected_stock, period=period)
     if result["success"]:
-        st.subheader(f"{selected_stock} - Live Price & Technicals")
-        st.metric(label="Live Price", value=f"₹{result['current_price']:.2f}", delta=f"{result['price_change']:+.2f} ({result['price_change_percent']:+.2f}%)")
         ta = result["technical_analysis"]
+        col1, col2, col3 = st.columns([2, 2, 3])
 
-        # RSI and Buy/Sell Percentages
-        rsi_value = ta["rsi_value"]
-        st.write(f"**RSI (14):** {rsi_value:.2f}")
+        with col1:
+            st.metric(label="Live Price", value=f"₹{result['current_price']:.2f}", delta=f"{result['price_change']:+.2f} ({result['price_change_percent']:+.2f}%)")
+            st.write(f"**SMA20:** {ta.get('sma_20', 'N/A'):.2f}" if isinstance(ta.get('sma_20'), float) and ta.get('sma_20') == ta.get('sma_20') else "SMA20: N/A")
+            st.write(f"**SMA50:** {ta.get('sma_50', 'N/A'):.2f}" if isinstance(ta.get('sma_50'), float) and ta.get('sma_50') == ta.get('sma_50') else "SMA50: N/A")
+            st.write(f"**SMA200:** {ta.get('sma_200', 'N/A'):.2f}" if isinstance(ta.get('sma_200'), float) and ta.get('sma_200') == ta.get('sma_200') else "SMA200: N/A")
+            st.write(f"**EMA12:** {ta.get('ema_12', 'N/A'):.2f}" if isinstance(ta.get('ema_12'), float) and ta.get('ema_12') == ta.get('ema_12') else "EMA12: N/A")
+            st.write(f"**EMA26:** {ta.get('ema_26', 'N/A'):.2f}" if isinstance(ta.get('ema_26'), float) and ta.get('ema_26') == ta.get('ema_26') else "EMA26: N/A")
+            st.write(f"**EMA50:** {ta.get('ema_50', 'N/A'):.2f}" if isinstance(ta.get('ema_50'), float) and ta.get('ema_50') == ta.get('ema_50') else "EMA50: N/A")
 
-        # Calculate buy/sell percentages based on RSI
-        if not isinstance(rsi_value, float) or rsi_value != rsi_value:  # nan check
-            st.warning("Not enough data for RSI calculation.")
-        else:
-            if rsi_value > 70:
-                buy_pct = 0
-                sell_pct = 100
-            elif rsi_value < 30:
-                buy_pct = 100
-                sell_pct = 0
+        with col2:
+            rsi_value = ta.get("rsi_value")
+            st.write(f"**RSI (14):** {rsi_value:.2f}" if isinstance(rsi_value, float) and rsi_value == rsi_value else "RSI: N/A")
+            if isinstance(rsi_value, float) and rsi_value == rsi_value:
+                if rsi_value > 70:
+                    buy_pct = 0
+                    sell_pct = 100
+                elif rsi_value < 30:
+                    buy_pct = 100
+                    sell_pct = 0
+                else:
+                    buy_pct = int((70 - rsi_value) / 40 * 100)
+                    sell_pct = int((rsi_value - 30) / 40 * 100)
+                st.progress(buy_pct, text=f"Buy: {buy_pct}%")
+                st.progress(sell_pct, text=f"Sell: {sell_pct}%")
             else:
-                buy_pct = int((70 - rsi_value) / 40 * 100)
-                sell_pct = int((rsi_value - 30) / 40 * 100)
-            st.progress(buy_pct, text=f"Buy: {buy_pct}%")
-            st.progress(sell_pct, text=f"Sell: {sell_pct}%")
+                st.warning("Not enough data for RSI calculation.")
 
-        # Show all technical indicators
-        st.write(f"SMA20: {ta['sma_20']:.2f}")
-        st.write(f"SMA50: {ta['sma_50']:.2f}")
-        sma_200 = ta.get('sma_200')
-        if sma_200 is not None and isinstance(sma_200, float) and sma_200 == sma_200:  # not nan
-            st.write(f"SMA200: {sma_200:.2f}")
-        else:
-            st.write("SMA200: N/A")
-        st.write(f"EMA12: {ta['ema_12']:.2f}")
+            st.write(f"**MACD:** {ta.get('macd_value', 'N/A'):.2f}" if isinstance(ta.get('macd_value'), float) and ta.get('macd_value') == ta.get('macd_value') else "MACD: N/A")
+            st.write(f"**MACD Signal:** {ta.get('macd_signal_value', 'N/A'):.2f}" if isinstance(ta.get('macd_signal_value'), float) and ta.get('macd_signal_value') == ta.get('macd_signal_value') else "MACD Signal: N/A")
+            st.write(f"**MACD Histogram:** {ta.get('macd_histogram', 'N/A'):.2f}" if isinstance(ta.get('macd_histogram'), float) and ta.get('macd_histogram') == ta.get('macd_histogram') else "MACD Histogram: N/A")
 
-        ema_26 = ta.get('ema_26')
-        if ema_26 is not None and isinstance(ema_26, float) and ema_26 == ema_26:  # not nan
-            st.write(f"EMA26: {ema_26:.2f}")
-        else:
-            st.write("EMA26: N/A")
+        with col3:
+            st.markdown("### Technical Interpretations")
+            st.write("**RSI Analysis:**", ta["rsi_analysis"]["status"], ta["rsi_analysis"]["message"])
+            st.write("**Moving Average Signals:**")
+            for signal in ta["moving_average_signals"]:
+                st.write(f"- {signal['signal']}: {signal['message']}")
+            st.write("**MACD Analysis:**", ta["macd_analysis"]["status"], ta["macd_analysis"]["message"])
 
-        ema_50 = ta.get('ema_50')
-        if ema_50 is not None and isinstance(ema_50, float) and ema_50 == ema_50:  # not nan
-            st.write(f"EMA50: {ema_50:.2f}")
-        else:
-            st.write("EMA50: N/A")
-        st.write(f"MACD: {ta['macd_value']:.2f}")
-        st.write(f"MACD Signal: {ta['macd_signal_value']:.2f}")
-        st.write(f"MACD Histogram: {ta['macd_histogram']:.2f}")
-
-        # Show technical interpretations
-        st.write("**RSI Analysis:**", ta["rsi_analysis"]["status"], ta["rsi_analysis"]["message"])
-        st.write("**Moving Average Signals:**")
-        for signal in ta["moving_average_signals"]:
-            st.write(f"- {signal['signal']}: {signal['message']}")
-        st.write("**MACD Analysis:**", ta["macd_analysis"]["status"], ta["macd_analysis"]["message"])
+        st.markdown("---")
+        st.markdown(f"**Last Updated:** {ta['analysis_date']}")
     else:
         st.error(result.get("error", "No data available for this stock."))
