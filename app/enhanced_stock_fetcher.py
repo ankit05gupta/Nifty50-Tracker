@@ -9,6 +9,9 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
 import json
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')  # For non-blocking backend
 
 # Try to import TA-Lib for optimized calculations
 try:
@@ -155,10 +158,8 @@ class StockDataFetcher:
             histogram = macd_line - signal_line
             return macd_line, signal_line, histogram
     
-    def add_technical_indicators(self, data):
-        """Add all technical indicators to the dataframe"""
-        df = data.copy()
-        
+    def add_technical_indicators(self, df):
+        """Add all technical indicators to the dataframe (in-place for speed)"""
         # Moving Averages
         df['SMA_20'] = self.calculate_sma(df, 20)
         df['SMA_50'] = self.calculate_sma(df, 50)
@@ -166,16 +167,13 @@ class StockDataFetcher:
         df['EMA_12'] = self.calculate_ema(df, 12)
         df['EMA_26'] = self.calculate_ema(df, 26)
         df['EMA_50'] = self.calculate_ema(df, 50)
-        
         # RSI
         df['RSI'] = self.calculate_rsi(df, 14)
-        
         # MACD
         macd_line, signal_line, histogram = self.calculate_macd(df)
         df['MACD'] = macd_line
         df['MACD_Signal'] = signal_line
         df['MACD_Histogram'] = histogram
-        
         return df
     
     def interpret_rsi(self, rsi_value):
@@ -381,30 +379,77 @@ class StockDataFetcher:
     
     def get_multiple_stocks(self, symbols=None, max_stocks=10):
         """
-        Analyze multiple stocks with technical indicators
-        
-        Args:
-            symbols: List of symbols to analyze (default: first 10 Nifty 50)
-            max_stocks: Maximum number of stocks to analyze
-        
-        Returns:
-            Dictionary with analysis results for each stock
+        Analyze multiple stocks with technical indicators (batch fetch for speed)
         """
         if symbols is None:
             symbols = self.nifty50_symbols[:max_stocks]
-        
         print(f"🚀 Analyzing {len(symbols)} stocks with technical indicators...")
+        # Batch fetch all data at once using yfinance
+        data = yf.download(' '.join(symbols), period="3mo", group_by='ticker', progress=False, threads=True, auto_adjust=False)
         results = {}
-        
         for i, symbol in enumerate(symbols, 1):
-            print(f"[{i:2d}/{len(symbols)}] {symbol}")
-            results[symbol] = self.get_stock_data(symbol)
-        
+            # Reduce print statements for speed
+            # print(f"[{i:2d}/{len(symbols)}] {symbol}")
+            try:
+                symbol_data = data[symbol] if symbol in data else None
+                if symbol_data is None or symbol_data.empty or 'Close' not in symbol_data.columns:
+                    results[symbol] = {
+                        'symbol': symbol,
+                        'success': False,
+                        'error': 'No data available for this symbol/period'
+                    }
+                    continue
+                symbol_data = self.add_technical_indicators(symbol_data)
+                current_price = float(symbol_data['Close'].iloc[-1])
+                latest_rsi = symbol_data['RSI'].iloc[-1]
+                latest_sma_20 = symbol_data['SMA_20'].iloc[-1]
+                latest_sma_50 = symbol_data['SMA_50'].iloc[-1]
+                latest_ema_12 = symbol_data['EMA_12'].iloc[-1]
+                latest_macd = symbol_data['MACD'].iloc[-1]
+                latest_macd_signal = symbol_data['MACD_Signal'].iloc[-1]
+                latest_macd_hist = symbol_data['MACD_Histogram'].iloc[-1]
+                rsi_analysis = self.interpret_rsi(latest_rsi)
+                ma_signals = self.interpret_moving_averages(current_price, latest_sma_20, latest_sma_50, latest_ema_12)
+                macd_analysis = self.interpret_macd(latest_macd, latest_macd_signal, latest_macd_hist)
+                prev_close = float(symbol_data['Close'].iloc[-2]) if len(symbol_data) > 1 else current_price
+                price_change = current_price - prev_close
+                price_change_pct = (price_change / prev_close) * 100
+                results[symbol] = {
+                    'symbol': symbol,
+                    'success': True,
+                    'current_price': current_price,
+                    'price_change': price_change,
+                    'price_change_percent': price_change_pct,
+                    'data': symbol_data,
+                    'technical_analysis': {
+                        'rsi_value': latest_rsi,
+                        'sma_20': latest_sma_20,
+                        'sma_50': symbol_data['SMA_50'].iloc[-1],
+                        'sma_200': symbol_data['SMA_200'].iloc[-1],
+                        'ema_12': latest_ema_12,
+                        'ema_26': symbol_data['EMA_26'].iloc[-1],
+                        'ema_50': symbol_data['EMA_50'].iloc[-1],
+                        'macd_value': latest_macd,
+                        'macd_signal_value': latest_macd_signal,
+                        'macd_histogram': latest_macd_hist,
+                        'rsi_analysis': rsi_analysis,
+                        'moving_average_signals': ma_signals,
+                        'macd_analysis': macd_analysis,
+                        'data_points': len(symbol_data),
+                        'analysis_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    }
+                }
+            except Exception as e:
+                results[symbol] = {
+                    'symbol': symbol,
+                    'success': False,
+                    'error': f'Error fetching data: {str(e)}'
+                }
         print("✅ Analysis complete!")
         return results
     
     def print_detailed_analysis(self, symbol, analysis_result):
-        """Print detailed analysis for a single stock"""
+        """Print detailed analysis for a single stock and plot price/indicator graph"""
         if not analysis_result['success']:
             print(f"❌ {symbol}: {analysis_result.get('error', 'Unknown error')}")
             return
@@ -414,7 +459,7 @@ class StockDataFetcher:
         change_pct = analysis_result['price_change_percent']
         change_arrow = "📈" if price_change >= 0 else "📉"
         
-        print(f"\\n{change_arrow} {symbol.replace('.NS', '')} - ₹{analysis_result['current_price']:.2f}")
+        print(f"\n{change_arrow} {symbol.replace('.NS', '')} - ₹{analysis_result['current_price']:.2f}")
         print(f"   Change: {price_change:+.2f} ({change_pct:+.2f}%)")
         print("-" * 50)
         
@@ -426,18 +471,54 @@ class StockDataFetcher:
         print(f"   Action: {rsi['action']}")
         
         # Moving Average Signals
-        print("\\n📊 Moving Average Signals:")
+        print("\n📊 Moving Average Signals:")
         for signal in ta['moving_average_signals']:
             print(f"   {signal['signal']}: {signal['message']}")
         
         # MACD Analysis  
         macd = ta['macd_analysis']
-        print(f"\\n⚡ {macd['status']}: {macd['message']}")
+        print(f"\n⚡ {macd['status']}: {macd['message']}")
         print(f"   Trend: {macd['action']}")
+        
+        # Plot price and indicators
+        df = analysis_result['data']
+        plt.figure(figsize=(10,6))
+        plt.plot(df.index, df['Close'], label='Close Price', color='black')
+        plt.plot(df.index, df['SMA_20'], label='SMA 20', linestyle='--')
+        plt.plot(df.index, df['SMA_50'], label='SMA 50', linestyle='--')
+        plt.plot(df.index, df['EMA_12'], label='EMA 12', linestyle=':')
+        plt.plot(df.index, df['EMA_26'], label='EMA 26', linestyle=':')
+        plt.title(f'{symbol.replace(".NS", "")} Price & Moving Averages')
+        plt.xlabel('Date')
+        plt.ylabel('Price (₹)')
+        plt.legend()
+        plt.tight_layout()
+        fname = f'{symbol.replace(".NS", "")}_price_ma.png'
+        plt.savefig(fname)
+        print(f"Price/MA chart saved as {fname}")
+        
+        # Plot RSI and MACD
+        fig, ax1 = plt.subplots(figsize=(10,5))
+        ax1.plot(df.index, df['RSI'], label='RSI', color='purple')
+        ax1.axhline(70, color='red', linestyle='--', linewidth=0.7)
+        ax1.axhline(30, color='green', linestyle='--', linewidth=0.7)
+        ax1.set_ylabel('RSI')
+        ax1.set_xlabel('Date')
+        ax1.set_title(f'{symbol.replace(".NS", "")} RSI & MACD')
+        ax2 = ax1.twinx()
+        ax2.plot(df.index, df['MACD'], label='MACD', color='blue')
+        ax2.plot(df.index, df['MACD_Signal'], label='MACD Signal', color='orange')
+        ax2.bar(df.index, df['MACD_Histogram'], label='MACD Histogram', color='grey', alpha=0.3)
+        ax2.set_ylabel('MACD')
+        fig.legend(loc='upper left')
+        plt.tight_layout()
+        fname2 = f'{symbol.replace(".NS", "")}_rsi_macd.png'
+        plt.savefig(fname2)
+        print(f"RSI/MACD chart saved as {fname2}")
     
     def print_portfolio_summary(self, results):
-        """Print a comprehensive portfolio summary"""
-        print("\\n" + "="*90)
+        """Print a comprehensive portfolio summary with pie charts and bar graphs"""
+        print("\n" + "="*90)
         print("📊 NIFTY 50 TECHNICAL ANALYSIS PORTFOLIO SUMMARY")
         print("="*90)
         
@@ -447,6 +528,8 @@ class StockDataFetcher:
         hold_candidates = []
         bullish_momentum = []
         bearish_momentum = []
+        price_changes = []
+        price_labels = []
         
         # Analyze all results
         for symbol, data in results.items():
@@ -470,13 +553,39 @@ class StockDataFetcher:
                     bullish_momentum.append(clean_symbol)
                 elif 'BEARISH' in macd_status:
                     bearish_momentum.append(clean_symbol)
+                
+                # Price change for bar chart
+                price_changes.append(data['price_change_percent'])
+                price_labels.append(clean_symbol)
         
         # Print summary statistics
         print(f"✅ Successfully analyzed: {successful_analyses}/{len(results)} stocks")
         print(f"📅 Analysis completed: {datetime.now().strftime('%Y-%m-%d at %H:%M:%S')}")
         
-        # RSI-based recommendations
-        print(f"\\n🎯 RSI-BASED RECOMMENDATIONS:")
+        # Pie chart for RSI-based recommendations
+        pie_labels = ['Buy (RSI<30)', 'Sell (RSI>70)', 'Hold (RSI 30-70)']
+        pie_sizes = [len(buy_candidates), len(sell_candidates), len(hold_candidates)]
+        pie_colors = ['#4CAF50', '#F44336', '#FFEB3B']
+        plt.figure(figsize=(6,6))
+        plt.pie(pie_sizes, labels=pie_labels, colors=pie_colors, autopct='%1.1f%%', startangle=140)
+        plt.title('RSI-Based Recommendations')
+        plt.tight_layout()
+        plt.savefig('portfolio_rsi_pie.png')
+        print("Pie chart saved as portfolio_rsi_pie.png")
+        
+        # Bar chart for price changes
+        if price_changes:
+            plt.figure(figsize=(12,5))
+            bars = plt.bar(price_labels, price_changes, color=['#4CAF50' if x>=0 else '#F44336' for x in price_changes])
+            plt.xticks(rotation=90)
+            plt.ylabel('Price Change (%)')
+            plt.title('Stock Price Change (%)')
+            plt.tight_layout()
+            plt.savefig('portfolio_price_change_bar.png')
+            print("Bar chart saved as portfolio_price_change_bar.png")
+        
+        # MACD momentum analysis
+        print(f"\n🎯 RSI-BASED RECOMMENDATIONS:")
         print("-" * 45)
         if buy_candidates:
             print(f"🟢 BUY Opportunities (RSI < 30): {len(buy_candidates)} stocks")
@@ -491,7 +600,7 @@ class StockDataFetcher:
             print(f"   {', '.join(hold_candidates[:10])}{'...' if len(hold_candidates) > 10 else ''}")
         
         # MACD momentum analysis
-        print(f"\\n⚡ MOMENTUM ANALYSIS (MACD):")
+        print(f"\n⚡ MOMENTUM ANALYSIS (MACD):")
         print("-" * 35)
         if bullish_momentum:
             print(f"📈 Bullish Momentum: {len(bullish_momentum)} stocks")
@@ -507,7 +616,7 @@ class StockDataFetcher:
             bullish_pct = (len(buy_candidates) / total_analyzed) * 100
             bearish_pct = (len(sell_candidates) / total_analyzed) * 100;
             
-            print(f"\\n📊 OVERALL MARKET SENTIMENT:")
+            print(f"\n📊 OVERALL MARKET SENTIMENT:")
             print("-" * 35)
             if bullish_pct > 40:
                 print(f"🟢 BULLISH Market ({bullish_pct:.1f}% oversold stocks)")
@@ -516,7 +625,7 @@ class StockDataFetcher:
             else:
                 print(f"🟡 NEUTRAL Market (Balanced conditions)")
         
-        print(f"\\n" + "="*90)
+        print(f"\n" + "="*90)
         print("⚠️  IMPORTANT DISCLAIMER")
         print("="*90)
         print("• This analysis is for educational purposes only")
@@ -614,56 +723,4 @@ def run_comprehensive_analysis():
     # Show educational content first
     fetcher.print_educational_content()
     
-    # Ask user what they want to analyze
-    print(f"\\n" + "="*80)
-    print("📊 ANALYSIS OPTIONS")
-    print("="*80)
-    print("1. Quick analysis (Top 5 stocks)")
-    print("2. Medium analysis (Top 10 stocks)")
-    print("3. Full analysis (All 50 stocks)")
-    print("4. Custom stocks")
-    
-    try:
-        choice = input("\\nEnter your choice (1-4): ").strip()
-        
-        if choice == "1":
-            symbols = fetcher.nifty50_symbols[:5]
-            print(f"\\n🔍 Analyzing top 5 Nifty stocks...")
-        elif choice == "2":
-            symbols = fetcher.nifty50_symbols[:10]
-            print(f"\\n🔍 Analyzing top 10 Nifty stocks...")
-        elif choice == "3":
-            symbols = fetcher.nifty50_symbols
-            print(f"\\n🔍 Analyzing all 50 Nifty stocks (this may take a few minutes)...")
-        elif choice == "4":
-            custom_input = input("Enter stock symbols (comma-separated, e.g., RELIANCE.NS,TCS.NS): ")
-            symbols = [s.strip() for s in custom_input.split(",")]
-            print(f"\\n🔍 Analyzing {len(symbols)} custom stocks...")
-        else:
-            print("Invalid choice. Using default (top 5 stocks).")
-            symbols = fetcher.nifty50_symbols[:5]
-        
-        # Run analysis
-        results = fetcher.get_multiple_stocks(symbols)
-        
-        # Print detailed results
-        print(f"\\n" + "="*90)
-        print("📈 DETAILED STOCK ANALYSIS")
-        print("="*90)
-        
-        for symbol, result in results.items():
-            fetcher.print_detailed_analysis(symbol, result)
-        
-        # Print summary
-        fetcher.print_portfolio_summary(results)
-        
-        print(f"\\n🎉 Analysis complete!")
-        print("💡 Tip: Run this analysis daily to track market trends!")
-        
-    except KeyboardInterrupt:
-        print(f"\\n\\n👋 Analysis interrupted by user. Goodbye!")
-    except Exception as e:
-        print(f"\\n❌ Error during analysis: {e}")
-
-if __name__ == "__main__":
-    run_comprehensive_analysis()
+    # Ask user what they
