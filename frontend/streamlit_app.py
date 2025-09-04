@@ -1,97 +1,85 @@
 import streamlit as st
-import pandas as pd
-import plotly.graph_objects as go
-import sys
-import os
+import yfinance as yf
+import talib
+import json
 
-# Add app directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'app'))
+with open("nifty50_symbols_2025.json", "r") as f:
+    NIFTY50_SYMBOLS = json.load(f)
 
-from stock_fetcher import StockDataFetcher
-
-# Page configuration
-st.set_page_config(
-    page_title="Nifty 50 Stock Tracker",
-    page_icon="📈",
-    layout="wide"
-)
-
-# Title
-st.title("📈 Nifty 50 Stock Tracker & Trend Analyzer")
-st.markdown("---")
-
-# Sidebar
-st.sidebar.header("Settings")
-selected_stocks = st.sidebar.multiselect(
-    "Select Stocks to Track",
-    ["RELIANCE.NS", "HDFCBANK.NS", "BHARTIARTL.NS", "TCS.NS", "ICICIBANK.NS"],
-    default=["RELIANCE.NS", "HDFCBANK.NS"]
-)
-
-time_period = st.sidebar.selectbox(
-    "Time Period",
-    ["1mo", "3mo", "6mo", "1y"],
-    index=1
-)
-
-# Main content
-if st.button("Fetch Stock Data"):
-    if selected_stocks:
-        fetcher = StockDataFetcher()
-        
-        # Progress bar
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        results = {}
-        for i, symbol in enumerate(selected_stocks):
-            status_text.text(f"Fetching data for {symbol}...")
-            results[symbol] = fetcher.get_stock_data(symbol, time_period)
-            progress_bar.progress((i + 1) / len(selected_stocks))
-        
-        status_text.text("Data fetched successfully!")
-        
-        # Display results
-        col1, col2 = st.columns([1, 2])
-        
-        with col1:
-            st.subheader("Current Prices")
-            price_data = []
-            for symbol, data in results.items():
-                if data['success']:
-                    price_data.append({
-                        'Stock': symbol.replace('.NS', ''),
-                        'Price (₹)': f"₹{data['current_price']:.2f}"
-                    })
-            
-            if price_data:
-                df_prices = pd.DataFrame(price_data)
-                st.table(df_prices)
-        
-        with col2:
-            st.subheader("Price Charts")
-            for symbol, data in results.items():
-                if data['success']:
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(
-                        x=data['data'].index,
-                        y=data['data']['Close'],
-                        mode='lines',
-                        name=symbol.replace('.NS', ''),
-                        line=dict(width=2)
-                    ))
-                    
-                    fig.update_layout(
-                        title=f"{symbol.replace('.NS', '')} Price Trend",
-                        xaxis_title="Date",
-                        yaxis_title="Price (₹)",
-                        height=300
-                    )
-                    
-                    st.plotly_chart(fig, use_container_width=True)
+def get_live_price(symbol):
+    ticker = yf.Ticker(symbol)
+    data = ticker.history(period="1d", interval="1m")
+    if not data.empty:
+        return float(data['Close'].iloc[-1])
     else:
-        st.warning("Please select at least one stock to track.")
+        return None
 
-# Footer
-st.markdown("---")
-st.markdown("Built with ❤️ using Streamlit and Yahoo Finance API")
+def get_historical_data(symbol, period):
+    ticker = yf.Ticker(symbol)
+    data = ticker.history(period=period)
+    data = data.reset_index()
+    return data
+
+def add_indicators(df):
+    df['SMA20'] = talib.SMA(df['Close'].values.astype(float), timeperiod=20)
+    df['EMA20'] = talib.EMA(df['Close'].values.astype(float), timeperiod=20)
+    df['RSI14'] = talib.RSI(df['Close'].values.astype(float), timeperiod=14)
+    df['SMA50'] = talib.SMA(df['Close'].values.astype(float), timeperiod=50)
+    df['EMA50'] = talib.EMA(df['Close'].values.astype(float), timeperiod=50)
+    df['SMA100'] = talib.SMA(df['Close'].values.astype(float), timeperiod=100)
+    df['EMA100'] = talib.EMA(df['Close'].values.astype(float), timeperiod=100)
+    df['MACD'], df['MACD_signal'], df['MACD_hist'] = talib.MACD(df['Close'].values.astype(float))
+    df['ADX'] = talib.ADX(
+        df['High'].values.astype(float),
+        df['Low'].values.astype(float),
+        df['Close'].values.astype(float),
+        timeperiod=14
+    )
+    df['OBV'] = talib.OBV(
+        df['Close'].values.astype(float),
+        df['Volume'].values.astype(float)
+    )
+    return df
+
+def get_buy_sell_percentages(df):
+    latest_rsi = df['RSI14'].iloc[-1]
+    if latest_rsi > 70:
+        buy_pct = 0
+        sell_pct = 100
+    elif latest_rsi < 30:
+        buy_pct = 100
+        sell_pct = 0
+    else:
+        buy_pct = int((70 - latest_rsi) / 40 * 100)
+        sell_pct = int((latest_rsi - 30) / 40 * 100)
+    return buy_pct, sell_pct
+
+st.title("Nifty 50 Tracker – MA/EMA/RSI/MACD/ADX/OBV/Volume & Real-Time Price")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    selected_stock = st.selectbox("Select Nifty 50 Stock:", NIFTY50_SYMBOLS)
+    period = st.selectbox("Select Period:", ['1mo', '3mo', '6mo', '1y'])
+
+refresh = st.button("Refresh Live Price")
+
+price_placeholder = col2.empty()
+
+df = get_historical_data(selected_stock, period)
+df = add_indicators(df)
+
+buy_pct, sell_pct = get_buy_sell_percentages(df)
+st.subheader("Current Buy/Sell Sentiment (based on RSI)")
+st.progress(buy_pct, text=f"Buy: {buy_pct}%")
+st.progress(sell_pct, text=f"Sell: {sell_pct}%")
+
+if refresh or True:
+    live_price = get_live_price(selected_stock)
+    if live_price is not None:
+        price_placeholder.metric(label=f"Live Price for {selected_stock}", value=f"₹{live_price:.2f}")
+    else:
+        price_placeholder.warning("Live price not available for this symbol.")
+
+st.subheader(f"{selected_stock} - Indicators & Volume ({period})")
+st.dataframe(df[['Date', 'Close', 'Volume', 'SMA20', 'EMA20', 'SMA50', 'EMA50', 'SMA100', 'EMA100', 'RSI14', 'MACD', 'MACD_signal', 'MACD_hist', 'ADX', 'OBV']].tail(30))
