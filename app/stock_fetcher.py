@@ -12,24 +12,25 @@ class StockDataFetcher:
             # Add more symbols as needed
         ]
     
+    # ...existing code...
     def get_stock_data(self, symbol, period="1mo"):
         """Fetch stock data for a given symbol"""
         try:
-            ticker = yf.Ticker(symbol)
-            data = ticker.history(period=period)
-            
-            if not data.empty:
+            data = yf.download(symbol, period=period, progress=False, threads=False, auto_adjust=False)
+            if not data.empty and 'Close' in data.columns:
+                # Ensure current_price is a float, not a Series
+                current_price = float(data['Close'].iloc[-1])
                 return {
                     'symbol': symbol,
-                    'current_price': data['Close'].iloc[-1],
+                    'current_price': current_price,
                     'data': data,
                     'success': True
                 }
             else:
                 return {'symbol': symbol, 'success': False, 'error': 'No data found'}
-                
         except Exception as e:
             return {'symbol': symbol, 'success': False, 'error': str(e)}
+# ...existing code...
     
     def get_multiple_stocks(self, symbols=None):
         """Fetch data for multiple stocks"""
