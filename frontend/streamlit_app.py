@@ -1,85 +1,88 @@
 import streamlit as st
-import yfinance as yf
-import talib
 import json
+import sys
+import os
 
-with open("nifty50_symbols_2025.json", "r") as f:
-    NIFTY50_SYMBOLS = json.load(f)
+# Add the app directory to the Python path for import
+app_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "app"))
+if app_dir not in sys.path:
+    sys.path.append(app_dir)
 
-def get_live_price(symbol):
-    ticker = yf.Ticker(symbol)
-    data = ticker.history(period="1d", interval="1m")
-    if not data.empty:
-        return float(data['Close'].iloc[-1])
+from enhanced_stock_fetcher import StockDataFetcher
+
+st.title("Nifty 50 Stock Technical Analysis")
+
+# Load Nifty 50 symbols from JSON
+with open(os.path.join(app_dir, "nifty50_symbols_2025.json")) as f:
+    nifty_symbols = json.load(f)
+
+fetcher = StockDataFetcher()
+
+selected_stock = st.selectbox("Select Nifty 50 Stock:", nifty_symbols)
+period = st.selectbox("Select Period:", ["1mo", "3mo", "6mo", "1y"], index=0)
+
+if st.button("Refresh Analysis"):
+    refresh = True
+else:
+    refresh = False
+
+if refresh or True:  # Always show data on first load
+    result = fetcher.get_stock_data(selected_stock, period=period)
+    if result["success"]:
+        st.subheader(f"{selected_stock} - Live Price & Technicals")
+        st.metric(label="Live Price", value=f"₹{result['current_price']:.2f}", delta=f"{result['price_change']:+.2f} ({result['price_change_percent']:+.2f}%)")
+        ta = result["technical_analysis"]
+
+        # RSI and Buy/Sell Percentages
+        rsi_value = ta["rsi_value"]
+        st.write(f"**RSI (14):** {rsi_value:.2f}")
+
+        # Calculate buy/sell percentages based on RSI
+        if not isinstance(rsi_value, float) or rsi_value != rsi_value:  # nan check
+            st.warning("Not enough data for RSI calculation.")
+        else:
+            if rsi_value > 70:
+                buy_pct = 0
+                sell_pct = 100
+            elif rsi_value < 30:
+                buy_pct = 100
+                sell_pct = 0
+            else:
+                buy_pct = int((70 - rsi_value) / 40 * 100)
+                sell_pct = int((rsi_value - 30) / 40 * 100)
+            st.progress(buy_pct, text=f"Buy: {buy_pct}%")
+            st.progress(sell_pct, text=f"Sell: {sell_pct}%")
+
+        # Show all technical indicators
+        st.write(f"SMA20: {ta['sma_20']:.2f}")
+        st.write(f"SMA50: {ta['sma_50']:.2f}")
+        sma_200 = ta.get('sma_200')
+        if sma_200 is not None and isinstance(sma_200, float) and sma_200 == sma_200:  # not nan
+            st.write(f"SMA200: {sma_200:.2f}")
+        else:
+            st.write("SMA200: N/A")
+        st.write(f"EMA12: {ta['ema_12']:.2f}")
+
+        ema_26 = ta.get('ema_26')
+        if ema_26 is not None and isinstance(ema_26, float) and ema_26 == ema_26:  # not nan
+            st.write(f"EMA26: {ema_26:.2f}")
+        else:
+            st.write("EMA26: N/A")
+
+        ema_50 = ta.get('ema_50')
+        if ema_50 is not None and isinstance(ema_50, float) and ema_50 == ema_50:  # not nan
+            st.write(f"EMA50: {ema_50:.2f}")
+        else:
+            st.write("EMA50: N/A")
+        st.write(f"MACD: {ta['macd_value']:.2f}")
+        st.write(f"MACD Signal: {ta['macd_signal_value']:.2f}")
+        st.write(f"MACD Histogram: {ta['macd_histogram']:.2f}")
+
+        # Show technical interpretations
+        st.write("**RSI Analysis:**", ta["rsi_analysis"]["status"], ta["rsi_analysis"]["message"])
+        st.write("**Moving Average Signals:**")
+        for signal in ta["moving_average_signals"]:
+            st.write(f"- {signal['signal']}: {signal['message']}")
+        st.write("**MACD Analysis:**", ta["macd_analysis"]["status"], ta["macd_analysis"]["message"])
     else:
-        return None
-
-def get_historical_data(symbol, period):
-    ticker = yf.Ticker(symbol)
-    data = ticker.history(period=period)
-    data = data.reset_index()
-    return data
-
-def add_indicators(df):
-    df['SMA20'] = talib.SMA(df['Close'].values.astype(float), timeperiod=20)
-    df['EMA20'] = talib.EMA(df['Close'].values.astype(float), timeperiod=20)
-    df['RSI14'] = talib.RSI(df['Close'].values.astype(float), timeperiod=14)
-    df['SMA50'] = talib.SMA(df['Close'].values.astype(float), timeperiod=50)
-    df['EMA50'] = talib.EMA(df['Close'].values.astype(float), timeperiod=50)
-    df['SMA100'] = talib.SMA(df['Close'].values.astype(float), timeperiod=100)
-    df['EMA100'] = talib.EMA(df['Close'].values.astype(float), timeperiod=100)
-    df['MACD'], df['MACD_signal'], df['MACD_hist'] = talib.MACD(df['Close'].values.astype(float))
-    df['ADX'] = talib.ADX(
-        df['High'].values.astype(float),
-        df['Low'].values.astype(float),
-        df['Close'].values.astype(float),
-        timeperiod=14
-    )
-    df['OBV'] = talib.OBV(
-        df['Close'].values.astype(float),
-        df['Volume'].values.astype(float)
-    )
-    return df
-
-def get_buy_sell_percentages(df):
-    latest_rsi = df['RSI14'].iloc[-1]
-    if latest_rsi > 70:
-        buy_pct = 0
-        sell_pct = 100
-    elif latest_rsi < 30:
-        buy_pct = 100
-        sell_pct = 0
-    else:
-        buy_pct = int((70 - latest_rsi) / 40 * 100)
-        sell_pct = int((latest_rsi - 30) / 40 * 100)
-    return buy_pct, sell_pct
-
-st.title("Nifty 50 Tracker – MA/EMA/RSI/MACD/ADX/OBV/Volume & Real-Time Price")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    selected_stock = st.selectbox("Select Nifty 50 Stock:", NIFTY50_SYMBOLS)
-    period = st.selectbox("Select Period:", ['1mo', '3mo', '6mo', '1y'])
-
-refresh = st.button("Refresh Live Price")
-
-price_placeholder = col2.empty()
-
-df = get_historical_data(selected_stock, period)
-df = add_indicators(df)
-
-buy_pct, sell_pct = get_buy_sell_percentages(df)
-st.subheader("Current Buy/Sell Sentiment (based on RSI)")
-st.progress(buy_pct, text=f"Buy: {buy_pct}%")
-st.progress(sell_pct, text=f"Sell: {sell_pct}%")
-
-if refresh or True:
-    live_price = get_live_price(selected_stock)
-    if live_price is not None:
-        price_placeholder.metric(label=f"Live Price for {selected_stock}", value=f"₹{live_price:.2f}")
-    else:
-        price_placeholder.warning("Live price not available for this symbol.")
-
-st.subheader(f"{selected_stock} - Indicators & Volume ({period})")
-st.dataframe(df[['Date', 'Close', 'Volume', 'SMA20', 'EMA20', 'SMA50', 'EMA50', 'SMA100', 'EMA100', 'RSI14', 'MACD', 'MACD_signal', 'MACD_hist', 'ADX', 'OBV']].tail(30))
+        st.error(result.get("error", "No data available for this stock."))
