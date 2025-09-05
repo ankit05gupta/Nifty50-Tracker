@@ -1,95 +1,202 @@
-# Nifty 50 Tracker
+# 📈 Nifty 50 Stock Tracker
 
-A comprehensive stock tracking and analysis application for Nifty 50 stocks with technical indicators and interactive dashboard.
+A comprehensive Python-based stock tracking and technical analysis application for Nifty 50 stocks. Features an interactive Streamlit dashboard with real-time data fetching, technical indicators, and educational content for beginners.
 
-## Project Structure
+## 🌟 Features
+
+### 📊 Technical Analysis
+- **Moving Averages**: SMA (20, 50, 200) and EMA (12, 26, 50)
+- **RSI Indicator**: 14-period Relative Strength Index with buy/sell signals
+- **MACD Analysis**: Moving Average Convergence Divergence with signal interpretation
+- **Real-time Price Data**: Live stock prices with change indicators
+
+### 🎓 Educational Content
+- Detailed explanations of each technical indicator
+- Signal interpretations for beginners
+- Interactive visualizations and progress bars
+- Educational tooltips and analysis descriptions
+
+### 🚀 Easy Setup
+- Cross-platform setup scripts (Windows & Linux/Mac)
+- Comprehensive setup verification system
+- One-command installation process
+- Detailed error handling and troubleshooting
+
+## 🛠️ Installation
+
+### Prerequisites
+- Python 3.8 or higher
+- Internet connection for stock data fetching
+
+### Quick Start
+
+#### Option 1: Use Setup Scripts (Recommended)
+
+**For Linux/Mac:**
+```bash
+chmod +x quick_start.sh
+./quick_start.sh
+```
+
+**For Windows:**
+```cmd
+quick_start.bat
+```
+
+#### Option 2: Manual Setup
+
+1. **Clone the repository:**
+```bash
+git clone https://github.com/ankit05gupta/Nifty50-Tracker.git
+cd Nifty50-Tracker
+```
+
+2. **Create virtual environment:**
+```bash
+python -m venv venv
+
+# Activate virtual environment
+# For Linux/Mac:
+source venv/bin/activate
+# For Windows:
+venv\Scripts\activate
+```
+
+3. **Install dependencies:**
+```bash
+pip install -r requirements.txt
+```
+
+4. **Verify setup:**
+```bash
+python setup_verification_test.py
+```
+
+## 🚦 Usage
+
+### 1. Start the Interactive Dashboard
+```bash
+streamlit run frontend/streamlit_app.py
+```
+
+This will open a web browser with the interactive dashboard where you can:
+- Select any Nifty 50 stock
+- Choose analysis period (1 month, 3 months, 6 months, 1 year)
+- View real-time technical analysis
+- Get buy/sell recommendations
+
+### 2. Database Setup (Optional)
+```bash
+python app/database.py
+```
+
+### 3. Setup Verification
+```bash
+python setup_verification_test.py
+```
+
+## 📁 Project Structure
 
 ```
 Nifty50-Tracker/
-├── src/                          # Core application code
+├── app/
 │   ├── __init__.py
-│   ├── enhanced_stock_fetcher.py # Advanced stock data fetching with technical analysis
-│   ├── stock_fetcher.py         # Simple stock data fetching
-│   └── main.py                  # Main application entry point
-├── frontend/                     # Streamlit web application
-│   └── streamlit_app.py         # Interactive dashboard
-├── config/                       # Configuration files
-│   ├── __init__.py
-│   └── nifty50_symbols_2025.json # Nifty 50 stock symbols
-├── scripts/                      # Utility scripts
-│   ├── __init__.py
-│   ├── database_setup.py        # Database initialization
-│   └── setup_generator.py       # Setup file generation
-├── docs/                         # Documentation assets
-│   ├── README.md
-│   └── nifty50_setup_flowchart.png
-├── data/                         # Database and data files
-│   └── nifty50_stocks.db
-├── tests/                        # Test files
-│   └── test1.py
-├── requirements.txt              # Python dependencies
-├── setup_verification_test.py    # Setup verification script
-├── quick_start.sh               # Unix setup script
-└── quick_start.bat              # Windows setup script
+│   ├── database.py              # SQLite database setup
+│   ├── enhanced_stock_fetcher.py # Main stock analysis engine
+│   ├── main.py                  # Application entry point
+│   └── stock_fetcher.py         # Stock data fetching utilities
+├── frontend/
+│   └── streamlit_app.py         # Interactive web dashboard
+├── data/                        # Data storage directory
+├── tests/
+│   └── test1.py                 # Test files
+├── requirements.txt             # Python dependencies
+├── nifty50_symbols_2025.json   # Nifty 50 stock symbols
+├── setup_verification_test.py   # Setup verification script
+├── quick_start.sh              # Linux/Mac setup script
+├── quick_start.bat             # Windows setup script
+└── README.md                   # This file
 ```
 
-## Features
+## 🔧 Technical Indicators Explained
 
-- Real-time stock data fetching from Yahoo Finance
-- Technical analysis with SMA, EMA, RSI, and MACD indicators
-- Interactive Streamlit dashboard
-- SQLite database for data storage
-- Comprehensive setup verification
+### Simple Moving Average (SMA)
+- **Purpose**: Smooths price fluctuations to show trend direction
+- **Signals**: 
+  - Price above SMA = Uptrend (Buy/Hold)
+  - Price below SMA = Downtrend (Sell)
+  - Golden Cross (SMA50 > SMA200) = Strong buy signal
 
-## Quick Start
+### Exponential Moving Average (EMA)
+- **Purpose**: More responsive to recent price changes than SMA
+- **Usage**: Better for short-term trading and quick trend changes
 
-1. **Setup Environment**
-   ```bash
-   # Linux/Mac
-   ./quick_start.sh
-   
-   # Windows
-   quick_start.bat
-   ```
+### Relative Strength Index (RSI)
+- **Range**: 0-100
+- **Signals**:
+  - RSI > 70: Overbought (Consider selling)
+  - RSI < 30: Oversold (Consider buying)
+  - RSI 30-70: Normal trading range
 
-2. **Install Dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+### MACD (Moving Average Convergence Divergence)
+- **Components**: MACD Line, Signal Line, Histogram
+- **Signals**:
+  - MACD crosses above Signal = Buy signal
+  - MACD crosses below Signal = Sell signal
+  - MACD above 0 = Overall uptrend
 
-3. **Verify Setup**
-   ```bash
-   python setup_verification_test.py
-   ```
+## 📋 Supported Stocks
 
-4. **Initialize Database**
-   ```bash
-   python scripts/database_setup.py
-   ```
+The application supports all Nifty 50 stocks including:
+- RELIANCE, HDFCBANK, BHARTIARTL, TCS, ICICIBANK
+- SBIN, HINDUNILVR, INFY, BAJFINANCE, ITC
+- And 40+ more Nifty 50 constituents
 
-5. **Run Dashboard**
-   ```bash
-   streamlit run frontend/streamlit_app.py
-   ```
+## 🔍 Troubleshooting
 
-## Development
+### Common Issues
 
-The project follows a modular structure:
+1. **Import Errors**: Run `python setup_verification_test.py` to check dependencies
+2. **Network Issues**: Ensure internet connection for stock data fetching
+3. **Permission Errors**: Check file system permissions for data directory
 
-- **src/** - Contains the core business logic and data fetching capabilities
-- **frontend/** - Web interface built with Streamlit
-- **config/** - Configuration files and data assets
-- **scripts/** - Utility scripts for setup and maintenance
+### Setup Verification
+The included setup verification script checks:
+- ✅ Python version compatibility
+- ✅ All required libraries installation
+- ✅ Database connectivity
+- ✅ Stock data fetching capability
+- ✅ File system permissions
 
-## Technical Indicators
+## 🤝 Contributing
 
-- **SMA (Simple Moving Average)** - 20, 50, 200 periods
-- **EMA (Exponential Moving Average)** - 12, 26, 50 periods  
-- **RSI (Relative Strength Index)** - 14 periods
-- **MACD (Moving Average Convergence Divergence)** - 12, 26, 9 periods
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## Requirements
+## 📄 License
 
-- Python 3.7+
-- Internet connection for real-time data
-- Dependencies listed in requirements.txt
+This project is open source and available under the [MIT License](LICENSE).
+
+## 🙏 Acknowledgments
+
+- Yahoo Finance API for stock data
+- Streamlit for the interactive dashboard framework
+- TA-Lib for technical analysis calculations
+- Plotly for advanced visualizations
+
+## 📞 Support
+
+If you encounter any issues or have questions:
+1. Check the troubleshooting section above
+2. Run the setup verification script
+3. Review the error messages for specific guidance
+4. Open an issue on GitHub for additional support
+
+---
+
+**Happy Trading! 📈**
+
+*Disclaimer: This tool is for educational purposes only. Always do your own research before making investment decisions.*
