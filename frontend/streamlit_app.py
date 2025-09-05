@@ -30,12 +30,12 @@ import os
 from datetime import datetime
 import random
 
-# Add the src directory to the Python path for import
-src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))
-if src_dir not in sys.path:
-    sys.path.append(src_dir)
+# Add the nifty_tracker package to the Python path for import
+package_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if package_dir not in sys.path:
+    sys.path.append(package_dir)
 
-from src.enhanced_stock_fetcher import StockDataFetcher
+from nifty_tracker.stock_fetcher import StockDataFetcher
 
 st.set_page_config(page_title="Nifty 50 Technical Analysis", layout="wide")
 
@@ -296,7 +296,7 @@ def get_analysis(symbol, period):
 # Add function to refresh DB with latest live NSE data
 # Add function to refresh DB with latest live NSE data
 def refresh_db():
-    db_mod = importlib.import_module("app.database")
+    db_mod = importlib.import_module("nifty_tracker.database")
     db_mod.fetch_live_nse_stocks_and_store()
     db_mod.fetch_live_bse_stocks_and_store()
 
