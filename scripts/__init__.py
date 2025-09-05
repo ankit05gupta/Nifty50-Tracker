@@ -1,0 +1,1 @@
+# Scripts package for Nifty 50 Tracker
