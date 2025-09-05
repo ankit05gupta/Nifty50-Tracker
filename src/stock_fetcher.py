@@ -7,7 +7,9 @@ import json
 class StockDataFetcher:
     def __init__(self):
         # Nifty 50 symbols (adding .NS for NSE)
-        with open('nifty50_symbols_2025.json') as f:
+        import os
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'nifty50_symbols_2025.json')
+        with open(config_path) as f:
             self.nifty50_symbols = json.load(f)
     
     # ...existing code...

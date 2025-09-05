@@ -3,10 +3,10 @@ import json
 import sys
 import os
 
-# Add the app directory to the Python path for import
-app_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "app"))
-if app_dir not in sys.path:
-    sys.path.append(app_dir)
+# Add the src directory to the Python path for import
+src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))
+if src_dir not in sys.path:
+    sys.path.append(src_dir)
 
 from enhanced_stock_fetcher import StockDataFetcher
 
@@ -19,7 +19,8 @@ with st.sidebar:
     # Load symbols only once for speed
     @st.cache_data
     def load_symbols():
-        with open(os.path.join(app_dir, "nifty50_symbols_2025.json")) as f:
+        config_path = os.path.join(os.path.dirname(__file__), "..", "config", "nifty50_symbols_2025.json")
+        with open(config_path) as f:
             return json.load(f)
     nifty_symbols = load_symbols()
     selected_stock = st.selectbox("Nifty 50 Stock", nifty_symbols)
