@@ -327,7 +327,7 @@ class StockDataFetcher:
             data_with_indicators = self.add_technical_indicators(data)
             
             # Get latest values
-            current_price = float(data['Close'].iloc[-1])
+            current_price = float(data['Close'].iloc[-1]) if not isinstance(data['Close'], pd.Series) or len(data['Close']) == 1 else float(data['Close'].iloc[-1])
             latest_rsi = data_with_indicators['RSI'].iloc[-1]
             latest_sma_20 = data_with_indicators['SMA_20'].iloc[-1]
             latest_sma_50 = data_with_indicators['SMA_50'].iloc[-1]
@@ -409,7 +409,7 @@ class StockDataFetcher:
                     }
                     continue
                 symbol_data = self.add_technical_indicators(symbol_data)
-                current_price = float(symbol_data['Close'].iloc[-1])
+                current_price = float(symbol_data['Close'].iloc[-1]) if not isinstance(symbol_data['Close'], pd.Series) or len(symbol_data['Close']) == 1 else float(symbol_data['Close'].iloc[-1])
                 latest_rsi = symbol_data['RSI'].iloc[-1]
                 latest_sma_20 = symbol_data['SMA_20'].iloc[-1]
                 latest_sma_50 = symbol_data['SMA_50'].iloc[-1]

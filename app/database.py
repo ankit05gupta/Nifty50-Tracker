@@ -1,3 +1,97 @@
+def fetch_live_bse_stocks_and_store():
+    """Fetch live BSE stock data using the yfinance-based scraper and store in stock_list table with all available fields."""
+    from app.bse_live_scraper import fetch_bse_equity_stock_list
+    stocks = fetch_bse_equity_stock_list()
+    db_path = get_db_path()
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    # Check for required columns, drop and recreate if missing
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='stock_list'")
+    exists = cursor.fetchone()
+    required = [
+        'id','symbol','name','industry','lastPrice','open','dayHigh','dayLow','previousClose','change','pChange','yearHigh','yearLow','totalTradedVolume','totalTradedValue','isin','exchange'
+    ]
+    recreate = False
+    if exists:
+        cursor.execute("PRAGMA table_info(stock_list)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if not all(col in columns for col in required):
+            print("Schema mismatch: Dropping and recreating 'stock_list' table with correct columns.")
+            cursor.execute("DROP TABLE IF EXISTS stock_list")
+            recreate = True
+    else:
+        recreate = True
+    if recreate:
+        cursor.execute('''
+            CREATE TABLE stock_list (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol TEXT NOT NULL,
+                name TEXT,
+                industry TEXT,
+                lastPrice REAL,
+                open REAL,
+                dayHigh REAL,
+                dayLow REAL,
+                previousClose REAL,
+                change REAL,
+                pChange REAL,
+                yearHigh REAL,
+                yearLow REAL,
+                totalTradedVolume INTEGER,
+                totalTradedValue REAL,
+                isin TEXT,
+                exchange TEXT,
+                UNIQUE(symbol, exchange)
+            )
+        ''')
+    for stock in stocks:
+        cursor.execute('''SELECT id FROM stock_list WHERE symbol=? AND exchange=?''', (stock['symbol'], 'BSE'))
+        row = cursor.fetchone()
+        if row is None:
+            cursor.execute('''INSERT INTO stock_list (symbol, name, industry, lastPrice, open, dayHigh, dayLow, previousClose, change, pChange, yearHigh, yearLow, totalTradedVolume, totalTradedValue, isin, exchange) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (
+                    stock['symbol'],
+                    stock['companyName'],
+                    stock['industry'],
+                    stock['lastPrice'],
+                    stock['open'],
+                    stock['dayHigh'],
+                    stock['dayLow'],
+                    stock['previousClose'],
+                    stock['change'],
+                    stock['pChange'],
+                    stock['yearHigh'],
+                    stock['yearLow'],
+                    stock['totalTradedVolume'],
+                    stock['totalTradedValue'],
+                    stock['isin'],
+                    'BSE'
+                )
+            )
+        else:
+            cursor.execute('''UPDATE stock_list SET name=?, industry=?, lastPrice=?, open=?, dayHigh=?, dayLow=?, previousClose=?, change=?, pChange=?, yearHigh=?, yearLow=?, totalTradedVolume=?, totalTradedValue=?, isin=? WHERE symbol=? AND exchange=?''',
+                (
+                    stock['companyName'],
+                    stock['industry'],
+                    stock['lastPrice'],
+                    stock['open'],
+                    stock['dayHigh'],
+                    stock['dayLow'],
+                    stock['previousClose'],
+                    stock['change'],
+                    stock['pChange'],
+                    stock['yearHigh'],
+                    stock['yearLow'],
+                    stock['totalTradedVolume'],
+                    stock['totalTradedValue'],
+                    stock['isin'],
+                    stock['symbol'],
+                    'BSE'
+                )
+            )
+    conn.commit()
+    conn.close()
+    print(f"Stored {len(stocks)} live BSE stocks in stock_list table.")
 def fetch_live_nse_stocks_and_store():
     """Fetch live NSE stock data using the advanced scraper and store in stock_list table with all available fields."""
     from app.nse_live_scraper import fetch_nse_equity_stock_list
