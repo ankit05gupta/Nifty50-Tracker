@@ -23,6 +23,9 @@ except ImportError:
     print("⚠️  TA-Lib not installed - Using pandas calculations")
     print("   Install with: pip install TA-Lib (for faster performance)")
 
+from sklearn.linear_model import LogisticRegression
+import numpy as np
+
 class StockDataFetcher:
     """
     Enhanced stock data fetcher with technical analysis capabilities
@@ -132,15 +135,19 @@ class StockDataFetcher:
     def calculate_rsi(self, data, period=14):
         """Calculate Relative Strength Index"""
         if TALIB_AVAILABLE:
-            return talib.RSI(data['Close'].values.astype(float).ravel(), timeperiod=period)
+            # Convert TA-Lib output to Series with correct index!
+            rsi = talib.RSI(data['Close'].values.astype(float).ravel(), timeperiod=period)
+            return pd.Series(rsi, index=data.index)
         else:
             # Manual RSI calculation using pandas
             delta = data['Close'].diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-            rs = gain / loss
+            gain = delta.where(delta > 0, 0)
+            loss = -delta.where(delta < 0, 0)
+            avg_gain = gain.rolling(window=period, min_periods=period).mean()
+            avg_loss = loss.rolling(window=period, min_periods=period).mean()
+            rs = avg_gain / avg_loss
             rsi = 100 - (100 / (1 + rs))
-            return rsi
+            return rsi  # This is a Series
 
     def calculate_macd(self, data, fast=12, slow=26, signal=9):
         """Calculate MACD indicator"""
@@ -712,6 +719,41 @@ class StockDataFetcher:
         for tip in tips:
             print(tip)
 
+    def ml_predict_buy_sell(self, df):
+        # Check if DataFrame is valid
+        if df is None or df.empty or 'Close' not in df.columns:
+            return {"prediction": "N/A", "prob": 0.0}
+
+        # Feature engineering
+        df = df.copy()
+        df['sma_20'] = df['Close'].rolling(window=20).mean()
+        df['rsi'] = self.calculate_rsi(df, 14)
+        macd, _, _ = self.calculate_macd(df)  # <-- FIXED: unpack all three
+        df['macd'] = macd
+        df = df.dropna()
+
+        # Target: 1 if price increases next day, else 0
+        df['target'] = (df['Close'].shift(-1) > df['Close']).astype(int)
+        features = ['sma_20', 'rsi', 'macd']
+        X = df[features]
+        y = df['target']
+
+        # Use last 30% as test, rest as train
+        split = int(len(df) * 0.7)
+        X_train, X_test = X[:split], X[split:]
+        y_train, y_test = y[:split], y[split:]
+
+        if len(X_train) < 10 or len(X_test) < 1:
+            return {"prediction": "N/A", "prob": 0.0}
+
+        model = LogisticRegression()
+        model.fit(X_train, y_train)
+
+        # Predict for the latest row
+        latest = X.iloc[[-1]]
+        prob = model.predict_proba(latest)[0][1]
+        prediction = "Buy" if prob > 0.5 else "Sell"
+        return {"prediction": prediction, "prob": prob}
 
 # Example usage and testing functions
 def run_comprehensive_analysis():
