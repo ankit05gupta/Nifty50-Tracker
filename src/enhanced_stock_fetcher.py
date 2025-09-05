@@ -39,7 +39,9 @@ class StockDataFetcher:
         """Initialize the fetcher with Nifty 50 symbols and educational content"""
         # Load Nifty 50 symbols
         try:
-            with open('nifty50_symbols_2025.json') as f:
+            import os
+            config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'nifty50_symbols_2025.json')
+            with open(config_path) as f:
                     self.nifty50_symbols = json.load(f)
                     print(f"✅ Loaded {len(self.nifty50_symbols)} Nifty 50 symbols")
         except FileNotFoundError:
